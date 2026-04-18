@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Brayka Bay — Nav Sub</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+:root {
+  --bg: #1a1a2e; --bg2: #16213e; --bg3: #0f3460;
+  --accent: #1D9E75; --warn: #EF9F27; --danger: #e24b4a; --blue: #378ADD;
+  --text: #eee; --text2: #aaa; --text3: #666;
+  --card: rgba(22,33,62,0.95);
+}
+.day { --bg:#f5f5f5; --bg2:#fff; --bg3:#ddd; --text:#222; --text2:#555; --text3:#999; --card:rgba(255,255,255,0.97); }
+* { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+body { font-family:system-ui,sans-serif; background:var(--bg); color:var(--text); height:100dvh; display:flex; flex-direction:column; overflow:hidden; }
+
+/* TOOLBAR */
+#toolbar { display:flex; gap:6px; padding:8px 10px; background:var(--bg2); align-items:center; flex-wrap:wrap; border-bottom:1px solid var(--bg3); flex-shrink:0; }
+#toolbar h1 { font-size:14px; font-weight:700; color:var(--accent); white-space:nowrap; }
+.tool-group { display:flex; gap:4px; flex-wrap:wrap; }
+.btn { font-size:12px; padding:6px 12px; border-radius:20px; border:1px solid var(--bg3); background:var(--bg); color:var(--text2); cursor:pointer; white-space:nowrap; min-height:34px; display:flex; align-items:center; gap:4px; }
+.btn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+.btn.warn { border-color:var(--warn); color:var(--warn); }
+.btn.warn.active { background:var(--warn); color:#fff; }
+.btn.danger { border-color:var(--danger); color:var(--danger); }
+.btn.blue { border-color:var(--blue); color:var(--blue); }
+.btn.blue.active { background:var(--blue); color:#fff; }
+.icon { font-size:14px; }
+
+/* MAP */
+#map { flex:1; min-height:0; }
+
+/* BOTTOM BAR */
+#bottombar { background:var(--bg2); border-top:1px solid var(--bg3); flex-shrink:0; }
+#inforow { display:flex; gap:12px; padding:6px 12px; flex-wrap:wrap; align-items:center; min-height:38px; }
+.info-chip { font-size:12px; color:var(--text2); }
+.info-chip b { color:var(--text); font-size:13px; }
+#bearing-big { font-size:20px; font-weight:700; color:var(--accent); }
+
+/* PANELS */
+.panel { position:absolute; z-index:1001; background:var(--card); border:1px solid var(--bg3); border-radius:12px; padding:12px; max-height:60dvh; overflow-y:auto; }
+#wp-panel { top:60px; right:8px; width:min(300px, 92vw); display:none; }
+#weather-panel { top:60px; left:8px; width:min(280px, 92vw); display:none; }
+#layers-panel { top:60px; left:8px; width:min(260px, 92vw); display:none; }
+#zones-panel { top:60px; right:8px; width:min(280px, 92vw); display:none; }
+.panel h3 { font-size:13px; font-weight:700; color:var(--accent); margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; }
+.panel-close { cursor:pointer; color:var(--text2); font-size:18px; line-height:1; }
+
+/* WAYPOINT LIST */
+.wp-row { font-size:12px; color:var(--text2); padding:6px 0; border-bottom:1px solid var(--bg3); display:flex; justify-content:space-between; align-items:center; gap:8px; }
+.wp-row:last-child { border:none; }
+.wp-bearing { color:var(--warn); font-weight:700; }
+.wp-del { color:var(--danger); cursor:pointer; font-size:18px; padding:0 4px; }
+
+/* WEATHER */
+.weather-semaforo { display:flex; align-items:center; gap:10px; padding:10px; border-radius:8px; margin-bottom:8px; }
+.semaforo-dot { width:36px; height:36px; border-radius:50%; flex-shrink:0; }
+.weather-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+.w-card { background:var(--bg2); border-radius:8px; padding:8px; text-align:center; }
+.w-val { font-size:18px; font-weight:700; color:var(--text); }
+.w-lbl { font-size:10px; color:var(--text2); margin-top:2px; }
+.w-day { display:flex; justify-content:space-between; align-items:center; padding:5px 0; border-bottom:1px solid var(--bg3); font-size:12px; }
+.w-day:last-child { border:none; }
+
+/* LAYERS */
+.layer-row { display:flex; justify-content:space-between; align-items:center; padding:7px 0; border-bottom:1px solid var(--bg3); font-size:13px; }
+.layer-row:last-child { border:none; }
+.toggle { width:40px; height:22px; border-radius:11px; border:none; cursor:pointer; position:relative; transition:background 0.2s; flex-shrink:0; }
+.toggle.on { background:var(--accent); }
+.toggle.off { background:var(--bg3); }
+.toggle::after { content:''; position:absolute; top:3px; width:16px; height:16px; border-radius:50%; background:white; transition:left 0.2s; }
+.toggle.on::after { left:21px; }
+.toggle.off::after { left:3px; }
+
+/* ZONES */
+.zone-row { display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--bg3); font-size:12px; }
+.zone-row:last-child { border:none; }
+.zone-dot { width:12px; height:12px; border-radius:50%; flex-shrink:0; margin-right:6px; }
+.zone-name { flex:1; color:var(--text); }
+.zone-del { color:var(--danger); cursor:pointer; font-size:16px; padding:0 4px; }
+
+/* COMPASS */
+#compass-wrap { position:absolute; bottom:90px; right:8px; z-index:1000; }
+
+/* NIGHT MODE BTN */
+#night-btn { position:absolute; bottom:90px; left:8px; z-index:1000; }
+
+/* MODE HINT */
+#hint { position:absolute; bottom:48px; left:50%; transform:translateX(-50%); z-index:1000; background:rgba(0,0,0,0.7); color:#fff; font-size:11px; padding:4px 12px; border-radius:20px; pointer-events:none; white-space:nowrap; max-width:90vw; text-align:center; }
+
+/* ZONE FORM */
+#zone-form { margin-top:8px; display:none; }
+#zone-form input, #zone-form select { width:100%; margin-bottom:6px; padding:6px 8px; border-radius:6px; border:1px solid var(--bg3); background:var(--bg); color:var(--text); font-size:13px; }
+#zone-form .btn { width:100%; justify-content:center; }
+</style>
+</head>
+<body>
+
+<div id="toolbar">
+  <h1>⚓ Brayka Bay</h1>
+  <div class="tool-group">
+    <button class="btn active" id="btn-exit" onclick="setMode('exit')"><span class="icon">🔴</span>Exit</button>
+    <button class="btn" id="btn-drop" onclick="setMode('drop')"><span class="icon">🟠</span>Drop</button>
+    <button class="btn" id="btn-wp" onclick="setMode('wp')"><span class="icon">🔵</span>WP</button>
+    <button class="btn" id="btn-nav" onclick="setMode('nav')"><span class="icon">🧭</span>Rotta</button>
+    <button class="btn blue" id="btn-zone" onclick="setMode('zone')"><span class="icon">📌</span>Zona</button>
+  </div>
+  <div class="tool-group" style="margin-left:auto">
+    <button class="btn" onclick="togglePanel('layers-panel')"><span class="icon">🗺</span>Layer</button>
+    <button class="btn warn" onclick="togglePanel('weather-panel'); loadWeather()"><span class="icon">🌤</span>Meteo</button>
+    <button class="btn" onclick="togglePanel('zones-panel')"><span class="icon">📍</span>Zone</button>
+    <button class="btn danger" onclick="clearAll()"><span class="icon">✕</span></button>
+  </div>
+</div>
+
+<div id="map"></div>
+
+<div id="hint">Clicca sulla mappa per impostare l'exit point</div>
+
+<!-- COMPASS -->
+<div id="compass-wrap">
+  <svg width="70" height="70" viewBox="0 0 70 70" style="filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5))">
+    <circle cx="35" cy="35" r="33" fill="var(--card)" stroke="var(--bg3)" stroke-width="1"/>
+    <text x="35" y="13" font-size="10" fill="var(--accent)" text-anchor="middle" font-weight="700">N</text>
+    <text x="35" y="64" font-size="9" fill="var(--text3)" text-anchor="middle">S</text>
+    <text x="9" y="39" font-size="9" fill="var(--text3)" text-anchor="middle">O</text>
+    <text x="61" y="39" font-size="9" fill="var(--text3)" text-anchor="middle">E</text>
+    <polygon id="needle-n" points="35,14 32,37 38,37" fill="var(--danger)"/>
+    <polygon id="needle-s" points="35,56 32,33 38,33" fill="var(--text3)"/>
+    <circle cx="35" cy="35" r="3" fill="var(--text2)"/>
+    <text id="needle-deg" x="35" y="50" font-size="8" fill="var(--warn)" text-anchor="middle" font-weight="700"></text>
+  </svg>
+</div>
+
+<!-- NIGHT MODE -->
+<div id="night-btn">
+  <button class="btn" onclick="toggleNight()" style="border-radius:50%;width:44px;height:44px;padding:0;justify-content:center;font-size:18px">🌙</button>
+</div>
+
+<div id="bottombar">
+  <div id="inforow">
+    <span class="info-chip">Modo: <b id="mode-lbl">Exit</b></span>
+    <span class="info-chip" id="bi" style="display:none"><span id="bearing-big"></span></span>
+    <span class="info-chip" id="di" style="display:none">📏 <b id="dist-val"></b></span>
+    <span class="info-chip" id="ci" style="font-size:11px">📍 <b id="coord-val">—</b></span>
+  </div>
+</div>
+
+<!-- PANELS -->
+<div class="panel" id="wp-panel">
+  <h3>Percorso <span class="panel-close" onclick="togglePanel('wp-panel')">×</span></h3>
+  <div id="wp-rows"></div>
+  <div style="margin-top:8px;display:flex;gap:6px">
+    <button class="btn" style="flex:1;justify-content:center;font-size:11px" onclick="exportPDF()">📄 Export PDF</button>
+    <button class="btn" style="flex:1;justify-content:center;font-size:11px" onclick="clearRoute()">🗑 Pulisci rotta</button>
+  </div>
+</div>
+
+<div class="panel" id="weather-panel">
+  <h3>Meteo Brayka Bay <span class="panel-close" onclick="togglePanel('weather-panel')">×</span></h3>
+  <div id="weather-content"><p style="color:var(--text2);font-size:12px">Caricamento...</p></div>
+</div>
+
+<div class="panel" id="layers-panel">
+  <h3>Layer mappa <span class="panel-close" onclick="togglePanel('layers-panel')">×</span></h3>
+  <div class="layer-row"><span>🛰 Satellite (Esri)</span><button class="toggle on" id="tog-sat" onclick="toggleLayer('sat')"></button></div>
+  <div class="layer-row"><span>⚓ OpenSeaMap (reef/sec.)</span><button class="toggle off" id="tog-sea" onclick="toggleLayer('sea')"></button></div>
+  <div class="layer-row"><span>🌊 Batimetria GEBCO</span><button class="toggle off" id="tog-bathy" onclick="toggleLayer('bathy')"></button></div>
+  <div class="layer-row"><span>🗺 Etichette luoghi</span><button class="toggle on" id="tog-labels" onclick="toggleLayer('labels')"></button></div>
+</div>
+
+<div class="panel" id="zones-panel">
+  <h3>Zone fisse <span class="panel-close" onclick="togglePanel('zones-panel')">×</span></h3>
+  <div id="zone-rows"><p style="font-size:12px;color:var(--text2)">Nessuna zona. Usa il modo 📌 Zona per aggiungerne.</p></div>
+  <button class="btn blue" style="margin-top:8px;width:100%;justify-content:center" onclick="setMode('zone');togglePanel('zones-panel')">+ Aggiungi zona</button>
+</div>
+
+<script>
+// ---- MAP INIT ----
+const map = L.map('map', {zoomControl:false}).setView([25.2155, 34.7995], 18);
+L.control.zoom({position:'topright'}).addTo(map);
+
+const layers = {
+  sat: L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',{maxZoom:21,attribution:"© Google"}).addTo(map),
+  labels: L.tileLayer('https://mt1.google.com/vt/lyrs=h&x={x}&y={y}&z={z}',{maxZoom:20,opacity:0.8}).addTo(map),
+  sea: L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png',{maxZoom:18,opacity:0.8}),
+  bathy: L.tileLayer('https://tiles.gebco.net/tiles/gebco_2023/{z}/{x}/{y}.png',{maxZoom:14,opacity:0.5,attribution:'© GEBCO'})
+};
+const layerState = {sat:true, labels:true, sea:false, bathy:false};
+
+function toggleLayer(name){
+  layerState[name] = !layerState[name];
+  if(layerState[name]) map.addLayer(layers[name]);
+  else map.removeLayer(layers[name]);
+  const btn = document.getElementById('tog-'+name);
+  btn.className = 'toggle ' + (layerState[name]?'on':'off');
+}
+
+// ---- STATE ----
+let mode = 'exit';
+let exitMarker = null, dropMarker = null, navClickMarker = null;
+let routeLine = null;
+let waypoints = [], wpMarkers = [], wpLines = [];
+let zones = [], zoneMarkers = [];
+let nightMode = false;
+let pendingZoneColor = '#1D9E75';
+let weatherLoaded = false;
+
+const hints = {
+  exit:'Clicca sulla mappa per impostare l\'exit point (punto di uscita)',
+  drop:'Clicca per impostare il drop point (tuffo da gommone)',
+  wp:'Clicca per aggiungere waypoint — la rotta consecutiva viene calcolata automaticamente',
+  nav:'Clicca in qualsiasi punto per vedere bearing e distanza verso exit',
+  zone:'Clicca per posizionare una zona fissa (reef, drop-off, uscita...)'
+};
+
+// ---- ICONS ----
+const exitIcon = mkIcon('X','#e24b4a',28);
+const dropIcon = mkIcon('D','#EF9F27',28);
+const navIcon = mkIcon('','var(--blue)',18);
+function wpIcon(n){ return mkIcon(n,'#378ADD',24); }
+function zoneIconFn(color){ return mkIcon('📍',color,26,'font-size:16px'); }
+
+function mkIcon(label, color, size, extraStyle=''){
+  return L.divIcon({className:'',
+    html:`<div style="width:${size}px;height:${size}px;background:${color};border:2.5px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:white;box-shadow:0 2px 6px rgba(0,0,0,0.5);${extraStyle}">${label}</div>`,
+    iconSize:[size,size], iconAnchor:[size/2,size/2]});
+}
+
+// ---- MODE ----
+function setMode(m){
+  mode = m;
+  const labels = {exit:'Exit',drop:'Drop',wp:'Waypoint',nav:'Rotta',zone:'Zona'};
+  document.getElementById('mode-lbl').textContent = labels[m];
+  document.getElementById('hint').textContent = hints[m];
+  ['exit','drop','wp','nav','zone'].forEach(id=>{
+    const b = document.getElementById('btn-'+id);
+    if(!b) return;
+    b.className = 'btn' + (id===m?' active':'') + (id==='zone'?' blue':'') + (id==='drop'?' warn':'');
+  });
+  document.getElementById('bi').style.display='none';
+  document.getElementById('di').style.display='none';
+}
+
+// ---- BEARING / DISTANCE ----
+function bearing(from, to){
+  const r=x=>x*Math.PI/180, dLon=r(to.lng-from.lng);
+  const la1=r(from.lat), la2=r(to.lat);
+  const y=Math.sin(dLon)*Math.cos(la2);
+  const x=Math.cos(la1)*Math.sin(la2)-Math.sin(la1)*Math.cos(la2)*Math.cos(dLon);
+  return ((Math.atan2(y,x)*180/Math.PI)%360+360)%360;
+}
+function distM(a,b){ return Math.round(a.distanceTo(b)); }
+function distStr(m){ return m<1000?m+'m':(m/1000).toFixed(2)+'km'; }
+function compassDir(d){ return ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSO','SO','OSO','O','ONO','NO','NNO'][Math.round(d/22.5)%16]; }
+
+function updateNeedle(deg){
+  const cx=35,cy=35,r=21;
+  const rad=(deg-90)*Math.PI/180, radS=rad+Math.PI;
+  function tri(r,rad){ return `${cx+r*Math.cos(rad)},${cy+r*Math.sin(rad)} ${cx+5*Math.cos(rad+Math.PI/2)},${cy+5*Math.sin(rad+Math.PI/2)} ${cx+5*Math.cos(rad-Math.PI/2)},${cy+5*Math.sin(rad-Math.PI/2)}`; }
+  document.getElementById('needle-n').setAttribute('points',tri(r,rad));
+  document.getElementById('needle-s').setAttribute('points',tri(r,radS));
+  document.getElementById('needle-deg').textContent=Math.round(deg)+'°';
+}
+
+// ---- MAP CLICK ----
+map.on('click', function(e){
+  const ll = e.latlng;
+  document.getElementById('coord-val').textContent = ll.lat.toFixed(5)+'°N '+ll.lng.toFixed(5)+'°E';
+
+  if(mode==='exit'){
+    if(exitMarker) map.removeLayer(exitMarker);
+    exitMarker = L.marker(ll,{icon:exitIcon,draggable:true}).addTo(map);
+    exitMarker.bindTooltip('<b>EXIT</b>',{permanent:true,direction:'top',offset:[0,-16]});
+    exitMarker.on('drag dragend', refreshAll);
+    refreshAll();
+
+  } else if(mode==='drop'){
+    if(dropMarker) map.removeLayer(dropMarker);
+    dropMarker = L.marker(ll,{icon:dropIcon,draggable:true}).addTo(map);
+    dropMarker.bindTooltip('<b>DROP</b>',{permanent:true,direction:'top',offset:[0,-16]});
+    dropMarker.on('drag dragend', refreshAll);
+    refreshAll();
+
+  } else if(mode==='wp'){
+    const n = waypoints.length+1;
+    const m = L.marker(ll,{icon:wpIcon(n),draggable:true}).addTo(map);
+    m.bindTooltip('<b>WP'+n+'</b>',{permanent:true,direction:'top',offset:[0,-14]});
+    m.on('drag dragend', refreshAll);
+    waypoints.push(ll);
+    wpMarkers.push(m);
+    refreshAll();
+
+  } else if(mode==='nav'){
+    if(!exitMarker){ showHint('Prima imposta un exit point!'); return; }
+    if(navClickMarker) map.removeLayer(navClickMarker);
+    if(routeLine) map.removeLayer(routeLine);
+    navClickMarker = L.marker(ll,{icon:navIcon}).addTo(map);
+    const exitLL = exitMarker.getLatLng();
+    const b = bearing(ll, exitLL);
+    const d = distM(ll, exitLL);
+    routeLine = L.polyline([ll,exitLL],{color:'#378ADD',weight:3,dashArray:'10,6',opacity:0.9}).addTo(map);
+    routeLine.bindTooltip(`${Math.round(b)}° ${compassDir(b)} — ${distStr(d)}`,{permanent:true,direction:'center'});
+    document.getElementById('bearing-big').textContent = Math.round(b)+'° '+compassDir(b);
+    document.getElementById('bi').style.display='';
+    document.getElementById('dist-val').textContent = distStr(d);
+    document.getElementById('di').style.display='';
+    updateNeedle(b);
+
+  } else if(mode==='zone'){
+    const name = prompt('Nome della zona (es. "Reef Nord", "Drop-off", "Entrata sud"):');
+    if(!name) return;
+    const colors = ['#1D9E75','#e24b4a','#EF9F27','#378ADD','#a855f7','#ec4899'];
+    const color = colors[zones.length % colors.length];
+    const zm = L.marker(ll,{icon:zoneIconFn(color),draggable:true}).addTo(map);
+    zm.bindTooltip('<b>'+name+'</b>',{permanent:true,direction:'top',offset:[0,-16]});
+    zm.on('drag dragend', ()=>{});
+    zones.push({name, color, marker:zm, visible:true});
+    zoneMarkers.push(zm);
+    refreshZoneList();
+  }
+});
+
+// ---- REFRESH ROUTES ----
+function refreshAll(){
+  wpLines.forEach(l=>map.removeLayer(l));
+  wpLines=[];
+
+  // Build sequence: drop → wp1 → wp2 → ... → exit
+  const sequence = [];
+  if(dropMarker) sequence.push({ll:dropMarker.getLatLng(), label:'DROP'});
+  wpMarkers.forEach((m,i)=>sequence.push({ll:m.getLatLng(), label:'WP'+(i+1)}));
+  if(exitMarker) sequence.push({ll:exitMarker.getLatLng(), label:'EXIT'});
+
+  for(let i=0;i<sequence.length-1;i++){
+    const from = sequence[i], to = sequence[i+1];
+    const b = Math.round(bearing(from.ll, to.ll));
+    const ret = Math.round((b+180)%360);
+    const d = distStr(distM(from.ll, to.ll));
+    const color = to.label==='EXIT' ? '#e24b4a' : '#378ADD';
+    const line = L.polyline([from.ll, to.ll],{color, weight:2.5, dashArray:'8,5', opacity:0.9}).addTo(map);
+    line.bindTooltip(`${from.label}→${to.label}: ${b}° ${compassDir(b)} (rit. ${ret}°) — ${d}`,{direction:'center',sticky:true});
+    wpLines.push(line);
+  }
+
+  refreshWPList();
+}
+
+// ---- WP LIST ----
+function refreshWPList(){
+  const panel = document.getElementById('wp-panel');
+  const rows = document.getElementById('wp-rows');
+
+  const sequence = [];
+  if(dropMarker) sequence.push({ll:dropMarker.getLatLng(), label:'DROP'});
+  wpMarkers.forEach((m,i)=>sequence.push({ll:m.getLatLng(), label:'WP'+(i+1), idx:i}));
+  if(exitMarker) sequence.push({ll:exitMarker.getLatLng(), label:'EXIT'});
+
+  if(sequence.length<2){ rows.innerHTML='<p style="font-size:12px;color:var(--text2)">Aggiungi drop point, waypoint o exit.</p>'; return; }
+  panel.style.display='block';
+
+  let html='';
+  for(let i=0;i<sequence.length-1;i++){
+    const from=sequence[i], to=sequence[i+1];
+    const b=Math.round(bearing(from.ll,to.ll));
+    const ret=Math.round((b+180)%360);
+    const d=distStr(distM(from.ll,to.ll));
+    const delBtn = (to.idx!==undefined) ? `<span class="wp-del" onclick="deleteWP(${to.idx})">✕</span>` : '';
+    html+=`<div class="wp-row">
+      <span style="color:var(--text)">${from.label} → ${to.label}</span>
+      <span><span class="wp-bearing">${b}° ${compassDir(b)}</span> &nbsp; <span style="color:var(--text3);font-size:11px">rit.${ret}°</span> &nbsp; ${d} ${delBtn}</span>
+    </div>`;
+  }
+  rows.innerHTML=html;
+}
+
+function deleteWP(i){
+  map.removeLayer(wpMarkers[i]);
+  wpMarkers.splice(i,1);
+  waypoints.splice(i,1);
+  wpMarkers.forEach((m,j)=>{m.setIcon(wpIcon(j+1));m.setTooltipContent('<b>WP'+(j+1)+'</b>');});
+  refreshAll();
+}
+
+// ---- ZONE LIST ----
+function refreshZoneList(){
+  const rows = document.getElementById('zone-rows');
+  if(zones.length===0){ rows.innerHTML='<p style="font-size:12px;color:var(--text2)">Nessuna zona. Usa il modo 📌 Zona per aggiungerne.</p>'; return; }
+  let html='';
+  zones.forEach((z,i)=>{
+    html+=`<div class="zone-row">
+      <div class="zone-dot" style="background:${z.color}"></div>
+      <span class="zone-name">${z.name}</span>
+      <button class="toggle ${z.visible?'on':'off'}" onclick="toggleZone(${i})"></button>
+      <span class="zone-del" onclick="deleteZone(${i})">✕</span>
+    </div>`;
+  });
+  rows.innerHTML=html;
+}
+
+function toggleZone(i){
+  zones[i].visible = !zones[i].visible;
+  if(zones[i].visible) map.addLayer(zones[i].marker);
+  else map.removeLayer(zones[i].marker);
+  refreshZoneList();
+}
+
+function deleteZone(i){
+  map.removeLayer(zones[i].marker);
+  zones.splice(i,1);
+  refreshZoneList();
+}
+
+// ---- WEATHER ----
+async function loadWeather(){
+  if(weatherLoaded) return;
+  const el = document.getElementById('weather-content');
+  try {
+    const url = 'https://api.open-meteo.com/v1/forecast?latitude=25.2155&longitude=34.7995&daily=windspeed_10m_max,winddirection_10m_dominant,windgusts_10m_max,temperature_2m_max,weathercode&wind_speed_unit=kn&timezone=Africa%2FCairo&forecast_days=7';
+    const r = await fetch(url);
+    const d = await r.json();
+
+    const wc = d.daily.windspeed_10m_max[1];
+    const wg = d.daily.windgusts_10m_max[1] || wc;
+    const wd = d.daily.winddirection_10m_dominant[1];
+
+    // semaforo mal di mare — solo vento (Mar Rosso non coperto da modello ondoso)
+    let semaforoColor, semaforoLabel, semaforoDesc;
+    if(wc <= 12){
+      semaforoColor='#1D9E75'; semaforoLabel='VERDE — OK offshore';
+      semaforoDesc='Vento leggero. Buone condizioni per gommone. Elphinstone navigabile.';
+    } else if(wc <= 20){
+      semaforoColor='#EF9F27'; semaforoLabel='GIALLO — Valuta bene';
+      semaforoDesc='Vento moderato. Uscite offshore possibili ma con cautela. Attenzione al mal di mare.';
+    } else {
+      semaforoColor='#e24b4a'; semaforoLabel='ROSSO — Shore dive';
+      semaforoDesc='Vento forte. Sconsigliato andare offshore. Resta sulla house reef in baia.';
+    }
+
+    const windDir = compassDir(wd);
+    let html = `<div class="weather-semaforo" style="background:${semaforoColor}22;border:1px solid ${semaforoColor}44">
+      <div class="semaforo-dot" style="background:${semaforoColor}"></div>
+      <div><div style="font-weight:700;font-size:13px;color:${semaforoColor}">${semaforoLabel}</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:2px">${semaforoDesc}</div></div>
+    </div>
+    <div class="weather-grid" style="margin-bottom:10px">
+      <div class="w-card"><div class="w-val">${Math.round(wc)} kn</div><div class="w-lbl">💨 Vento max</div></div>
+      <div class="w-card"><div class="w-val">${Math.round(wg)} kn</div><div class="w-lbl">💨 Raffiche max</div></div>
+      <div class="w-card"><div class="w-val">${windDir}</div><div class="w-lbl">🧭 Direzione</div></div>
+      <div class="w-card"><div class="w-val">${Math.round(d.daily.temperature_2m_max[1])}°C</div><div class="w-lbl">🌡 Temp. aria</div></div>
+    </div>
+    <div style="font-size:10px;color:var(--text3);margin-bottom:8px;font-style:italic">⚠️ Dati onde non disponibili per il Mar Rosso — semaforo basato su vento</div>
+    <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:4px">PROSSIMI 7 GIORNI</div>`;
+
+    const days = ['Dom','Lun','Mar','Mer','Gio','Ven','Sab'];
+    d.daily.windspeed_10m_max.forEach((w,i)=>{
+      if(i===0) return;
+      const wgi = d.daily.windgusts_10m_max[i]||w;
+      const date = new Date(d.daily.time[i]);
+      const dayName = days[date.getDay()];
+      let dot = w<=12?'🟢':w<=20?'🟡':'🔴';
+      html+=`<div class="w-day"><span>${dot} ${dayName} ${date.getDate()}/${date.getMonth()+1}</span><span style="color:var(--text)">${Math.round(w)}kn &nbsp; raffiche ${Math.round(wgi)}kn</span></div>`;
+    });
+
+    el.innerHTML = html;
+    weatherLoaded = true;
+  } catch(err){
+    el.innerHTML='<p style="color:var(--danger);font-size:12px">Errore caricamento meteo. Verifica connessione.</p>';
+  }
+}
+
+// ---- PANELS ----
+const allPanels = ['wp-panel','weather-panel','layers-panel','zones-panel'];
+function togglePanel(id){
+  const panel = document.getElementById(id);
+  const wasVisible = panel.style.display==='block';
+  allPanels.forEach(p=>document.getElementById(p).style.display='none');
+  if(!wasVisible) panel.style.display='block';
+  if(id==='wp-panel') refreshWPList();
+  if(id==='zones-panel') refreshZoneList();
+}
+
+// ---- NIGHT MODE ----
+function toggleNight(){
+  nightMode = !nightMode;
+  document.body.classList.toggle('day', !nightMode);
+  document.getElementById('night-btn').querySelector('button').textContent = nightMode?'☀️':'🌙';
+  if(nightMode){ map.getContainer().style.filter=''; }
+  else { map.getContainer().style.filter='brightness(1.1)'; }
+}
+
+// ---- CLEAR ----
+function clearAll(){
+  if(!confirm('Cancellare tutto?')) return;
+  [exitMarker,dropMarker,navClickMarker,routeLine].forEach(x=>{if(x)map.removeLayer(x);});
+  exitMarker=dropMarker=navClickMarker=routeLine=null;
+  wpMarkers.forEach(m=>map.removeLayer(m));
+  wpLines.forEach(l=>map.removeLayer(l));
+  waypoints=[]; wpMarkers=[]; wpLines=[];
+  document.getElementById('bi').style.display='none';
+  document.getElementById('di').style.display='none';
+  document.getElementById('coord-val').textContent='—';
+  document.getElementById('needle-deg').textContent='';
+  document.getElementById('wp-panel').style.display='none';
+}
+
+function clearRoute(){
+  [exitMarker,dropMarker,navClickMarker,routeLine].forEach(x=>{if(x)map.removeLayer(x);});
+  exitMarker=dropMarker=navClickMarker=routeLine=null;
+  wpMarkers.forEach(m=>map.removeLayer(m));
+  wpLines.forEach(l=>map.removeLayer(l));
+  waypoints=[]; wpMarkers=[]; wpLines=[];
+  refreshAll();
+}
+
+function showHint(msg){ const h=document.getElementById('hint'); h.textContent=msg; setTimeout(()=>h.textContent=hints[mode],2000); }
+
+// ---- EXPORT PDF ----
+function exportPDF(){
+  const sequence = [];
+  if(dropMarker) sequence.push({ll:dropMarker.getLatLng(), label:'DROP'});
+  wpMarkers.forEach((m,i)=>sequence.push({ll:m.getLatLng(), label:'WP'+(i+1)}));
+  if(exitMarker) sequence.push({ll:exitMarker.getLatLng(), label:'EXIT'});
+  if(sequence.length<2){ alert('Aggiungi almeno drop/exit e un waypoint.'); return; }
+
+  let rows='';
+  for(let i=0;i<sequence.length-1;i++){
+    const from=sequence[i], to=sequence[i+1];
+    const b=Math.round(bearing(from.ll,to.ll));
+    const ret=Math.round((b+180)%360);
+    const d=distStr(distM(from.ll,to.ll));
+    rows+=`<tr><td>${from.label}</td><td>${to.label}</td><td>${b}° ${compassDir(b)}</td><td>${ret}°</td><td>${d}</td>
+      <td>${from.ll.lat.toFixed(5)}°N ${from.ll.lng.toFixed(5)}°E</td></tr>`;
+  }
+  const last=sequence[sequence.length-1];
+  rows+=`<tr><td colspan="5" style="color:#888">Coordinate exit</td><td>${last.ll.lat.toFixed(5)}°N ${last.ll.lng.toFixed(5)}°E</td></tr>`;
+
+  const win=window.open('','_blank');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Piano Immersione — Brayka Bay</title>
+  <style>body{font-family:system-ui;padding:24px;max-width:700px;margin:0 auto}h1{font-size:20px;margin-bottom:4px}h2{font-size:14px;color:#666;font-weight:400;margin-bottom:20px}
+  table{width:100%;border-collapse:collapse;margin-top:16px}th{background:#1D9E75;color:white;padding:8px;text-align:left;font-size:12px}
+  td{padding:8px;border-bottom:1px solid #eee;font-size:12px}tr:nth-child(even){background:#f9f9f9}
+  .meta{display:flex;gap:24px;margin-bottom:20px;padding:12px;background:#f5f5f5;border-radius:8px;font-size:13px}
+  .warn{background:#fff3cd;border:1px solid #EF9F27;border-radius:8px;padding:12px;margin-top:16px;font-size:12px}
+  @media print{.no-print{display:none}}</style></head><body>
+  <h1>⚓ Piano Immersione — Brayka Bay</h1>
+  <h2>Generato il ${new Date().toLocaleDateString('it-IT')} alle ${new Date().toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})}</h2>
+  <div class="meta"><span>📍 Sito: Brayka Bay, Marsa Alam</span><span>🗓 Data: ____/____/______</span><span>👤 Buddy: ________________</span></div>
+  <table><thead><tr><th>Da</th><th>A</th><th>Bearing</th><th>Ritorno</th><th>Distanza</th><th>Coordinate partenza</th></tr></thead><tbody>${rows}</tbody></table>
+  <div class="warn">⚠️ Questi dati sono indicativi. Verifica sempre condizioni reali di corrente e visibilità. Porta sempre il dive computer. Bearing magnetico — considera declinazione locale (~2°E).</div>
+  <div style="margin-top:20px;font-size:11px;color:#aaa">Brayka Bay Nav Tool — uso personale</div>
+  <button class="no-print" onclick="window.print()" style="margin-top:16px;padding:10px 20px;background:#1D9E75;color:white;border:none;border-radius:8px;cursor:pointer;font-size:14px">🖨 Stampa / Salva PDF</button>
+  </body></html>`);
+  win.document.close();
+}
+</script>
+</body>
+</html>
